@@ -17,6 +17,7 @@ pub struct Bin {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct Group {
+    pub index: usize,
     pub bins: HashMap<String, Bin>,
     pub active: bool,
 }
@@ -24,6 +25,7 @@ pub struct Group {
 impl Default for Group {
     fn default() -> Self {
         Group {
+            index: 0,
             bins: HashMap::new(),
             active: true,
         }
@@ -95,13 +97,14 @@ impl Config {
             };
             let g = self.groups.entry(group_name).or_insert_with(Group::default);
             g.bins.insert(bin_name, bin);
+            g.index = g.bins.len() - 1;
             return Ok(());
         }
 
         if path.is_dir() {
             let g = self.groups.entry(group_name).or_insert_with(Group::default);
             g.active = true;
-
+            g.index = g.bins.len() - 1;
             for (name, file_path) in expand_dir(path)? {
                 g.bins.insert(
                     name,
@@ -119,7 +122,9 @@ impl Config {
     }
 
     pub fn pretty_print(&self, group: Option<&str>) {
-        for (gn, g) in &self.groups {
+        let mut groups: Vec<(&String, &Group)> = self.groups.iter().collect();
+        groups.sort_by(|a, b| a.1.index.cmp(&b.1.index));
+        for (gn, g) in groups {
             if let Some(filter) = group {
                 if filter != gn {
                     continue;
@@ -155,25 +160,31 @@ impl Config {
         }
     }
 
-    /// Remove a binary from a group. mark active=false if exists.
-    pub fn remove(&mut self, group: &str, name: Option<&str>) -> Result<()> {
+    pub fn remove(&mut self, group: &str, name: Option<&str>, delete: bool) -> Result<()> {
+        let mut delete_group = false;
         if let Some(g) = self.groups.get_mut(group) {
             if let Some(n) = name {
                 if let Some(b) = g.bins.get_mut(n) {
                     b.active = false;
-                    println!("Marked {} in group {} as inactive", n, group);
-                } else {
+                }
+                if delete {
+                    g.bins.remove(n);
                 }
             } else {
+                if delete {
+                    delete_group = true;
+                    g.bins.clear();
+                }
                 g.active = false;
                 for b in g.bins.values_mut() {
                     b.active = false;
                 }
             }
-            Ok(())
-        } else {
-            Ok(())
         }
+        if delete_group {
+            self.groups.remove(group);
+        }
+        Ok(())
     }
 
     pub fn find(&self, group: &str, name: &str) -> Option<&Bin> {
@@ -192,6 +203,11 @@ impl Config {
         }
         None
     }
+
+    pub fn group_exists(&self, group: &str) -> bool {
+        self.groups.contains_key(group)
+    }
+
 }
 
 #[cfg(unix)]

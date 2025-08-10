@@ -1,10 +1,11 @@
 use colored::Colorize;
 use x::cli::*;
-use x::config::{Config, get_config_path, load_config};
+use x::config::{Config, GLOBAL_DEFAULT_GROUP_NAME, get_config_path, load_config};
 use x::process;
 
 use clap::Parser;
 
+use std::io::Write;
 use std::path::Path;
 use std::process::exit;
 
@@ -53,11 +54,13 @@ pub fn run(cmd: RunCommand) {
         return;
     }
 
-    let r = conf.find(&cmd.group, program).unwrap_or_else(|| {
+    let group_name = cmd.group.unwrap_or(GLOBAL_DEFAULT_GROUP_NAME.to_string());
+
+    let r = conf.find(&group_name, program).unwrap_or_else(|| {
         eprintln!(
             "Error: Program {} not found in group {}",
             program.red(),
-            cmd.group.red()
+            group_name.red()
         );
         exit(1);
     });
@@ -119,10 +122,14 @@ pub fn add(cmd: AddCommand) {
         eprintln!("Error: No path specified");
         std::process::exit(1);
     }
-    conf.add(&cmd.group, &cmd.path, cmd.name).unwrap_or_else(|e| {
-        eprintln!("Error: cannot add path {}: {}", cmd.path, e);
-        std::process::exit(1);
-    });
+
+    let group_name = cmd.group.unwrap_or(GLOBAL_DEFAULT_GROUP_NAME.to_string());
+
+    conf.add(&group_name, &cmd.path, cmd.name)
+        .unwrap_or_else(|e| {
+            eprintln!("Error: cannot add path {}: {}", cmd.path, e);
+            std::process::exit(1);
+        });
 
     conf.save(&conf_path).unwrap_or_else(|e| {
         eprintln!(
@@ -132,7 +139,7 @@ pub fn add(cmd: AddCommand) {
         );
         std::process::exit(1);
     });
-    println!("Added {} to group {}", cmd.path, cmd.group);
+    println!("Added {} to group {}", cmd.path, group_name);
 }
 
 pub fn list(cmd: ListCommand) {
@@ -141,10 +148,10 @@ pub fn list(cmd: ListCommand) {
         std::process::exit(1);
     });
 
-    if cmd.all {
+    if cmd.group.is_none() {
         conf.pretty_print(None);
     } else {
-        conf.pretty_print(Some(&cmd.group));
+        conf.pretty_print(cmd.group.as_ref().map(|x| x.as_str()));
     }
 }
 
@@ -192,13 +199,39 @@ pub fn init(cmd: InitCommand) {
     );
 }
 
+pub fn confirm(message: &str) -> bool {
+    print!("{} [y/N] ", message);
+    std::io::stdout().flush().unwrap();
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input).unwrap();
+    input.trim().to_lowercase() == "y"
+}
+
 pub fn rm(cmd: RmCommand) {
     let mut conf = load_config(false).unwrap_or_else(|e| {
         eprintln!("Error: cannot load config: {}", e);
         std::process::exit(1);
     });
 
-    conf.remove(&cmd.group, cmd.name.as_deref())
+    let group_name = cmd.group.as_deref().unwrap_or(GLOBAL_DEFAULT_GROUP_NAME);
+
+    // check if group exists
+    if !conf.group_exists(group_name) {
+        eprintln!("group {} does not exist", group_name.green());
+        std::process::exit(1);
+    }
+
+    // double check from user before removing
+    if cmd.delete
+        && !confirm(&format!(
+            "Are you sure you want to remove {}? This cannot be undone.",
+            group_name.green()
+        ))
+    {
+        return;
+    }
+
+    conf.remove(group_name, cmd.name.as_deref(), cmd.delete)
         .unwrap_or_else(|e| {
             eprintln!("Error: cannot remove executable: {}", e);
             std::process::exit(1);
@@ -211,7 +244,7 @@ pub fn rm(cmd: RmCommand) {
 }
 
 pub static AVALIABLE_SUBCOMMANDS: &'static [&'static str] =
-    &["run", "r", "add", "rm", "list", "init"];
+    &["run", "r", "add", "rm", "list", "ls", "init"];
 
 fn main() {
     let args = std::env::args().collect::<Vec<String>>();

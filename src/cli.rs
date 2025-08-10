@@ -1,7 +1,5 @@
 use clap::{ArgAction, Parser, Subcommand};
 
-use crate::config::GLOBAL_DEFAULT_GROUP_NAME;
-
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
 pub struct Cli {
@@ -39,8 +37,8 @@ pub enum Commands {
 #[derive(Parser)]
 pub struct RunCommand {
     /// The name of group
-    #[arg(short='g', long="group", default_value=GLOBAL_DEFAULT_GROUP_NAME)]
-    pub group: String,
+    #[arg(short='g', long="group")]
+    pub group: Option<String>,
     /// The arguments to pass to the program
     #[arg(action=ArgAction::Append, allow_negative_numbers = true, required = true, allow_hyphen_values = true)]
     pub args: Option<Vec<String>>,
@@ -49,26 +47,22 @@ pub struct RunCommand {
 #[derive(Parser)]
 pub struct AddCommand {
     /// The name of group
-    #[arg(short='g', long="group", default_value=GLOBAL_DEFAULT_GROUP_NAME)]
-    pub group: String,
+    #[arg(short='g', long="group")]
+    pub group: Option<String>,
     /// The path to the executable
     #[arg()]
     pub path: String,
 
     /// alias for the executable
-    #[arg(short='n', long="name")]
+    #[arg(short = 'n', long = "name")]
     pub name: Option<String>,
 }
 
 #[derive(Parser)]
 pub struct ListCommand {
-    /// Show all groups and their executables
-    #[arg(short='a', long="all", action=ArgAction::SetTrue)]
-    pub all: bool,
-
     /// The name of group
-    #[arg(short='g', long="group", default_value=GLOBAL_DEFAULT_GROUP_NAME)]
-    pub group: String,
+    #[arg(short = 'g', long = "group")]
+    pub group: Option<String>,
 }
 
 #[derive(Parser)]
@@ -81,9 +75,13 @@ pub struct InitCommand {
 #[derive(Parser)]
 pub struct RmCommand {
     /// The name of group
-    #[arg(short='g', long="group", default_value=GLOBAL_DEFAULT_GROUP_NAME)]
-    pub group: String,
+    #[arg(short='g', long="group")]
+    pub group: Option<String>,
     /// The name of the executable to remove
     #[arg(short = 'n', long = "name")]
     pub name: Option<String>,
+
+    /// Hard delete
+    #[arg(short='d', long="delete", action=ArgAction::SetTrue)]
+    pub delete: bool
 }
