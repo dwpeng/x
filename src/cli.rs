@@ -32,12 +32,15 @@ pub enum Commands {
     /// Remove an executable from a group
     #[command()]
     Rm(RmCommand),
+
+    /// Activate a group with/without a name
+    Activate(ActivateCommand),
 }
 
 #[derive(Parser)]
 pub struct RunCommand {
     /// The name of group
-    #[arg(short='g', long="group")]
+    #[arg(short = 'g', long = "group")]
     pub group: Option<String>,
     /// The arguments to pass to the program
     #[arg(action=ArgAction::Append, allow_negative_numbers = true, required = true, allow_hyphen_values = true)]
@@ -47,7 +50,7 @@ pub struct RunCommand {
 #[derive(Parser)]
 pub struct AddCommand {
     /// The name of group
-    #[arg(short='g', long="group")]
+    #[arg(short = 'g', long = "group")]
     pub group: Option<String>,
     /// The path to the executable
     #[arg()]
@@ -75,7 +78,7 @@ pub struct InitCommand {
 #[derive(Parser)]
 pub struct RmCommand {
     /// The name of group
-    #[arg(short='g', long="group")]
+    #[arg(short = 'g', long = "group")]
     pub group: Option<String>,
     /// The name of the executable to remove
     #[arg(short = 'n', long = "name")]
@@ -83,5 +86,16 @@ pub struct RmCommand {
 
     /// Hard delete
     #[arg(short='d', long="delete", action=ArgAction::SetTrue)]
-    pub delete: bool
+    pub delete: bool,
+}
+
+#[derive(Parser)]
+pub struct ActivateCommand {
+    /// The name of group
+    #[arg(short = 'g', long = "group")]
+    pub group: Option<String>,
+
+    /// The name of the executable to remove
+    #[arg(short = 'n', long = "name")]
+    pub name: Option<String>,
 }

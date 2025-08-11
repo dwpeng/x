@@ -187,6 +187,22 @@ impl Config {
         Ok(())
     }
 
+    pub fn activate(&mut self, group: &str, name: Option<&str>) -> Result<()> {
+        if let Some(g) = self.groups.get_mut(group) {
+            if let Some(n) = name {
+                if let Some(b) = g.bins.get_mut(n) {
+                    b.active = true;
+                }
+            } else {
+                g.active = true;
+                for b in g.bins.values_mut() {
+                    b.active = true;
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub fn find(&self, group: &str, name: &str) -> Option<&Bin> {
         // check if active first
         if let Some(g) = self.groups.get(group) {
@@ -207,7 +223,6 @@ impl Config {
     pub fn group_exists(&self, group: &str) -> bool {
         self.groups.contains_key(group)
     }
-
 }
 
 #[cfg(unix)]

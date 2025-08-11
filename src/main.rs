@@ -1,11 +1,11 @@
-use colored::Colorize;
 use x::cli::*;
 use x::config::{Config, GLOBAL_DEFAULT_GROUP_NAME, get_config_path, load_config};
+use x::confirm;
 use x::process;
 
 use clap::Parser;
+use colored::Colorize;
 
-use std::io::Write;
 use std::path::Path;
 use std::process::exit;
 
@@ -199,14 +199,6 @@ pub fn init(cmd: InitCommand) {
     );
 }
 
-pub fn confirm(message: &str) -> bool {
-    print!("{} [y/N] ", message);
-    std::io::stdout().flush().unwrap();
-    let mut input = String::new();
-    std::io::stdin().read_line(&mut input).unwrap();
-    input.trim().to_lowercase() == "y"
-}
-
 pub fn rm(cmd: RmCommand) {
     let mut conf = load_config(false).unwrap_or_else(|e| {
         eprintln!("Error: cannot load config: {}", e);
@@ -243,8 +235,35 @@ pub fn rm(cmd: RmCommand) {
     });
 }
 
-pub static AVALIABLE_SUBCOMMANDS: &'static [&'static str] =
-    &["run", "r", "add", "rm", "list", "ls", "init"];
+pub fn activate(cmd: ActivateCommand) {
+    let mut conf = load_config(false).unwrap_or_else(|e| {
+        eprintln!("Error: cannot load config: {}", e);
+        std::process::exit(1);
+    });
+
+    let group_name = cmd.group.as_deref().unwrap_or(GLOBAL_DEFAULT_GROUP_NAME);
+
+    // check if group exists
+    if !conf.group_exists(group_name) {
+        eprintln!("group {} does not exist", group_name.green());
+        std::process::exit(1);
+    }
+
+    conf.activate(group_name, cmd.name.as_deref())
+        .unwrap_or_else(|e| {
+            eprintln!("Error: cannot remove executable: {}", e);
+            std::process::exit(1);
+        });
+
+    conf.save(&get_config_path().unwrap()).unwrap_or_else(|e| {
+        eprintln!("Error: cannot save config: {}", e);
+        std::process::exit(1);
+    });
+}
+
+pub static AVALIABLE_SUBCOMMANDS: &'static [&'static str] = &[
+    "run", "r", "add", "rm", "list", "ls", "init", "ac", "activate",
+];
 
 fn main() {
     let args = std::env::args().collect::<Vec<String>>();
@@ -261,5 +280,6 @@ fn main() {
         Commands::List(l) => list(l),
         Commands::Init(i) => init(i),
         Commands::Rm(r) => rm(r),
+        Commands::Activate(a) => activate(a),
     }
 }
