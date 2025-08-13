@@ -91,7 +91,7 @@ impl Config {
                 name.unwrap()
             };
             let bin = Bin {
-                path: path.to_path_buf(),
+                path: path.to_path_buf().canonicalize().unwrap(),
                 active: true,
                 source_dir: None,
             };
