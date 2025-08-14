@@ -214,13 +214,22 @@ pub fn rm(cmd: RmCommand) {
     }
 
     // double check from user before removing
-    if cmd.delete
-        && !confirm(&format!(
-            "Are you sure you want to remove {}? This cannot be undone.",
-            group_name.green()
-        ))
-    {
-        return;
+    if cmd.delete {
+        let message = if let Some(name) = &cmd.name {
+            format!(
+                "Are you sure you want to remove {} from group {}?",
+                name.green(),
+                group_name.green()
+            )
+        } else {
+            format!(
+                "Are you sure you want to remove all executables from group {}?",
+                group_name.green()
+            )
+        };
+        if !confirm(&message) {
+            return;
+        }
     }
 
     conf.remove(group_name, cmd.name.as_deref(), cmd.delete)
