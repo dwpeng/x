@@ -197,6 +197,11 @@ pub fn init(cmd: InitCommand) {
         "Created config file at {}",
         conf_path.display().to_string().color(colored::Color::Green)
     );
+
+    println!("Add the following to your shell config file to use x");
+    let bin_dir = conf.bin_dir.to_str().unwrap();
+    let msg = format!("export PATH=\"{}:$PATH\"", bin_dir);
+    println!("{}", msg.color(colored::Color::Green));
 }
 
 pub fn rm(cmd: RmCommand) {
@@ -244,35 +249,26 @@ pub fn rm(cmd: RmCommand) {
     });
 }
 
-pub fn activate(cmd: ActivateCommand) {
+pub fn switch(cmd: SwitchCommand) {
     let mut conf = load_config(false).unwrap_or_else(|e| {
         eprintln!("Error: cannot load config: {}", e);
         std::process::exit(1);
     });
 
-    let group_name = cmd.group.as_deref().unwrap_or(GLOBAL_DEFAULT_GROUP_NAME);
-
-    // check if group exists
-    if !conf.group_exists(group_name) {
-        eprintln!("group {} does not exist", group_name.green());
+    conf.switch(cmd.group.as_str()).unwrap_or_else(|e| {
+        eprintln!("Error: cannot switch group: {}", e);
         std::process::exit(1);
-    }
-
-    conf.activate(group_name, cmd.name.as_deref())
-        .unwrap_or_else(|e| {
-            eprintln!("Error: cannot remove executable: {}", e);
-            std::process::exit(1);
-        });
+    });
 
     conf.save(&get_config_path().unwrap()).unwrap_or_else(|e| {
         eprintln!("Error: cannot save config: {}", e);
         std::process::exit(1);
     });
+    println!("Switched to group {}", conf.active_group.green());
 }
 
-pub static AVALIABLE_SUBCOMMANDS: &'static [&'static str] = &[
-    "run", "r", "add", "rm", "list", "ls", "init", "ac", "activate",
-];
+pub static AVALIABLE_SUBCOMMANDS: &'static [&'static str] =
+    &["run", "r", "add", "rm", "list", "ls", "init", "s", "switch"];
 
 fn main() {
     let args = std::env::args().collect::<Vec<String>>();
@@ -289,6 +285,6 @@ fn main() {
         Commands::List(l) => list(l),
         Commands::Init(i) => init(i),
         Commands::Rm(r) => rm(r),
-        Commands::Activate(a) => activate(a),
+        Commands::Switch(s) => switch(s),
     }
 }

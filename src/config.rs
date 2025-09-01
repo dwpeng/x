@@ -8,10 +8,27 @@ use std::path::{Path, PathBuf};
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "kebab-case")]
 pub struct Bin {
+    pub name: String,
     pub path: PathBuf,
-    #[serde(default = "default_true")]
-    pub active: bool,
     pub source_dir: Option<PathBuf>,
+}
+
+impl Bin {
+    pub fn install(&self, dir_path: &PathBuf) -> Result<()> {
+        if dir_path.join(self.name.as_str()).exists() {
+            // remove
+            fs::remove_file(dir_path.join(self.name.as_str()))?;
+        }
+        fs::copy(&self.path, dir_path.join(self.name.as_str()))?;
+        return Ok(());
+    }
+
+    pub fn uninstall(&self, dir_path: &PathBuf) -> Result<()> {
+        if dir_path.join(self.name.as_str()).exists() {
+            fs::remove_file(dir_path.join(self.name.as_str()))?;
+        }
+        return Ok(());
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -19,7 +36,6 @@ pub struct Bin {
 pub struct Group {
     pub index: usize,
     pub bins: HashMap<String, Bin>,
-    pub active: bool,
 }
 
 impl Default for Group {
@@ -27,7 +43,6 @@ impl Default for Group {
         Group {
             index: 0,
             bins: HashMap::new(),
-            active: true,
         }
     }
 }
@@ -35,23 +50,35 @@ impl Default for Group {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct Config {
-    pub default_group: Option<String>,
+    pub active_group: String,
+    pub bin_dir: PathBuf,
     pub groups: HashMap<String, Group>,
 }
 
 pub static GLOBAL_DEFAULT_GROUP_NAME: &'static str = "global-default-group-name";
 
+pub fn get_bin_dir() -> Result<PathBuf> {
+    let home_dir = dirs::home_dir().ok_or_else(|| anyhow!("cannot get home dir"))?;
+    let bin_dir = home_dir.join(".local").join("bin").join("x");
+    if !bin_dir.exists() {
+        fs::create_dir_all(&bin_dir)?;
+    }
+    Ok(bin_dir)
+}
+
 impl Default for Config {
     fn default() -> Self {
+        let bin_dir = get_bin_dir();
+        if bin_dir.is_err() {
+            panic!("cannot get bin dir")
+        }
+        let bin_dir = bin_dir.unwrap();
         Config {
-            default_group: Some(GLOBAL_DEFAULT_GROUP_NAME.to_string()),
+            active_group: GLOBAL_DEFAULT_GROUP_NAME.to_string(),
+            bin_dir: bin_dir,
             groups: HashMap::new(),
         }
     }
-}
-
-fn default_true() -> bool {
-    true
 }
 
 pub fn get_config_path() -> Result<PathBuf> {
@@ -91,10 +118,15 @@ impl Config {
                 name.unwrap()
             };
             let bin = Bin {
+                name: bin_name.clone(),
                 path: path.to_path_buf().canonicalize().unwrap(),
-                active: true,
                 source_dir: None,
             };
+
+            if self.active_group == group_name {
+                bin.install(&self.bin_dir)?;
+            }
+
             let g = self.groups.entry(group_name).or_insert_with(Group::default);
             g.bins.insert(bin_name, bin);
             g.index = g.bins.len() - 1;
@@ -102,18 +134,21 @@ impl Config {
         }
 
         if path.is_dir() {
-            let g = self.groups.entry(group_name).or_insert_with(Group::default);
-            g.active = true;
+            let g = self
+                .groups
+                .entry(group_name.clone())
+                .or_insert_with(Group::default);
             g.index = g.bins.len() - 1;
             for (name, file_path) in expand_dir(path)? {
-                g.bins.insert(
-                    name,
-                    Bin {
-                        path: file_path,
-                        active: true,
-                        source_dir: Some(path.to_path_buf()),
-                    },
-                );
+                let bin = Bin {
+                    name: name.clone(),
+                    path: file_path.clone(),
+                    source_dir: Some(path.to_path_buf()),
+                };
+                if self.active_group == group_name {
+                    bin.install(&self.bin_dir)?;
+                }
+                g.bins.insert(name.clone(), bin);
             }
             return Ok(());
         }
@@ -131,29 +166,14 @@ impl Config {
                 }
             }
 
-            let g_color = if g.active {
-                gn.green().bold()
-            } else {
-                gn.color(Color::TrueColor { r: 6, g: 6, b: 6 })
-            };
-            println!("{}", g_color);
-
-            if !g.active {
-                continue;
-            }
-
+            println!("{}", gn.green().bold());
             let mut count = 1;
             for (bn, b) in &g.bins {
-                let color = if b.active {
-                    Color::Green
-                } else {
-                    Color::TrueColor { r: 6, g: 6, b: 6 }
-                };
                 println!(
                     " {:2}. {} -> {}",
                     count,
-                    bn.color(color),
-                    b.path.display().to_string().color(color),
+                    bn.color(Color::Green),
+                    b.path.display().to_string().color(Color::Green),
                 );
                 count += 1;
             }
@@ -164,20 +184,11 @@ impl Config {
         let mut delete_group = false;
         if let Some(g) = self.groups.get_mut(group) {
             if let Some(n) = name {
-                if let Some(b) = g.bins.get_mut(n) {
-                    b.active = false;
-                }
-                if delete {
-                    g.bins.remove(n);
-                }
+                g.bins.remove(n);
             } else {
                 if delete {
                     delete_group = true;
                     g.bins.clear();
-                }
-                g.active = false;
-                for b in g.bins.values_mut() {
-                    b.active = false;
                 }
             }
         }
@@ -187,37 +198,37 @@ impl Config {
         Ok(())
     }
 
-    pub fn activate(&mut self, group: &str, name: Option<&str>) -> Result<()> {
-        if let Some(g) = self.groups.get_mut(group) {
-            if let Some(n) = name {
-                if let Some(b) = g.bins.get_mut(n) {
-                    b.active = true;
-                }
-            } else {
-                g.active = true;
-                for b in g.bins.values_mut() {
-                    b.active = true;
-                }
-            }
-        }
-        Ok(())
-    }
-
     pub fn find(&self, group: &str, name: &str) -> Option<&Bin> {
         // check if active first
         if let Some(g) = self.groups.get(group) {
-            if !g.active {
-                return None;
-            }
             if let Some(b) = g.bins.get(name) {
-                if b.active {
-                    return Some(b);
-                } else {
-                    return None;
-                }
+                return Some(b);
             }
         }
         None
+    }
+
+    pub fn switch(&mut self, need_active_group_name: &str) -> Result<()> {
+        if self.active_group == need_active_group_name.to_string() {
+            return Ok(());
+        }
+
+        if !self.group_exists(need_active_group_name) {
+            anyhow::bail!("group {} does not exist", need_active_group_name);
+        }
+
+        let old_group_name = &self.active_group;
+        let bin_dir = &self.bin_dir;
+        let old_groups = self.groups.get_mut(old_group_name).unwrap();
+        for (_, b) in old_groups.bins.iter() {
+            b.uninstall(bin_dir)?;
+        }
+        let new_groups = self.groups.get_mut(need_active_group_name).unwrap();
+        for (_, b) in new_groups.bins.iter() {
+            b.install(bin_dir)?;
+        }
+        self.active_group = need_active_group_name.to_string();
+        Ok(())
     }
 
     pub fn group_exists(&self, group: &str) -> bool {

@@ -1,3 +1,5 @@
+use crate::config::GLOBAL_DEFAULT_GROUP_NAME;
+
 use clap::{ArgAction, Parser, Subcommand};
 
 #[derive(Parser)]
@@ -33,8 +35,10 @@ pub enum Commands {
     #[command()]
     Rm(RmCommand),
 
-    /// Activate a group with/without a name
-    Activate(ActivateCommand),
+    /// Switch to a group
+    #[command(visible_alias = "s")]
+    #[command()]
+    Switch(SwitchCommand),
 }
 
 #[derive(Parser)]
@@ -83,19 +87,14 @@ pub struct RmCommand {
     /// The name of the executable to remove
     #[arg(short = 'n', long = "name")]
     pub name: Option<String>,
-
     /// Hard delete
     #[arg(short='d', long="delete", action=ArgAction::SetTrue)]
     pub delete: bool,
 }
 
 #[derive(Parser)]
-pub struct ActivateCommand {
+pub struct SwitchCommand {
     /// The name of group
-    #[arg(short = 'g', long = "group")]
-    pub group: Option<String>,
-
-    /// The name of the executable to remove
-    #[arg(short = 'n', long = "name")]
-    pub name: Option<String>,
+    #[arg(short = 'g', long = "group", default_value = GLOBAL_DEFAULT_GROUP_NAME)]
+    pub group: String,
 }
