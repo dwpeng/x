@@ -16,10 +16,14 @@ pub struct Bin {
 impl Bin {
     pub fn install(&self, dir_path: &PathBuf) -> Result<()> {
         if dir_path.join(self.name.as_str()).exists() {
-            // remove
             fs::remove_file(dir_path.join(self.name.as_str()))?;
         }
-        fs::copy(&self.path, dir_path.join(self.name.as_str()))?;
+
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&self.path, dir_path.join(self.name.as_str()))?;
+        #[cfg(windows)]
+        std::os::windows::fs::symlink_file(&self.path, dir_path.join(self.name.as_str()))?;
+
         return Ok(());
     }
 
