@@ -79,9 +79,8 @@ pub fn run(cmd: RunCommand) {
 
 fn run_and_monitor(program: &str, args: &[String]) {
     let run = process::Run::new(program, args);
-    let stats = run.run_and_monitor();
-    println!("{}", stats);
-    exit(stats.exit_code.unwrap_or(1));
+    let exit_code = run.run_and_monitor();
+    exit(exit_code.unwrap_or(1));
 }
 
 pub fn add(cmd: AddCommand) {
