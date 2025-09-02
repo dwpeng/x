@@ -158,7 +158,8 @@ impl Config {
 
     pub fn pretty_print(&self, group: Option<&str>) {
         let mut groups: Vec<(&String, &Group)> = self.groups.iter().collect();
-        groups.sort_by(|a, b| a.1.index.cmp(&b.1.index));
+        groups.sort_by(|a, b| a.0.cmp(&b.0));
+
         for (gn, g) in groups {
             if let Some(filter) = group {
                 if filter != gn {
@@ -166,11 +167,15 @@ impl Config {
                 }
             }
 
-            println!("{}", gn.green().bold());
+            if gn == &self.active_group {
+                println!("{} {}", "*".green().bold(), gn.cyan().bold());
+            } else {
+                println!("  {}", gn.cyan());
+            }
             let mut count = 1;
             for (bn, b) in &g.bins {
                 println!(
-                    " {:2}. {} -> {}",
+                    "  {:2}. {} -> {}",
                     count,
                     bn.color(Color::Green),
                     b.path.display().to_string().color(Color::Green),
@@ -184,10 +189,17 @@ impl Config {
         let mut delete_group = false;
         if let Some(g) = self.groups.get_mut(group) {
             if let Some(n) = name {
+                let bin = g.bins.get(n);
+                if let Some(b) = bin {
+                    b.uninstall(&self.bin_dir)?;
+                }
                 g.bins.remove(n);
             } else {
                 if delete {
                     delete_group = true;
+                    for (_, bin) in g.bins.iter() {
+                        bin.uninstall(&self.bin_dir)?;
+                    }
                     g.bins.clear();
                 }
             }

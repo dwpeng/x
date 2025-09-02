@@ -148,10 +148,10 @@ pub fn list(cmd: ListCommand) {
         std::process::exit(1);
     });
 
-    if cmd.group.is_none() {
+    if cmd.all {
         conf.pretty_print(None);
     } else {
-        conf.pretty_print(cmd.group.as_ref().map(|x| x.as_str()));
+        conf.pretty_print(Some(&conf.active_group));
     }
 }
 
@@ -255,7 +255,9 @@ pub fn switch(cmd: SwitchCommand) {
         std::process::exit(1);
     });
 
-    conf.switch(cmd.group.as_str()).unwrap_or_else(|e| {
+    let need_active_group = cmd.group.unwrap_or(GLOBAL_DEFAULT_GROUP_NAME.to_owned());
+
+    conf.switch(&need_active_group).unwrap_or_else(|e| {
         eprintln!("Error: cannot switch group: {}", e);
         std::process::exit(1);
     });

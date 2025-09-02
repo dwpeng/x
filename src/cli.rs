@@ -1,5 +1,3 @@
-use crate::config::GLOBAL_DEFAULT_GROUP_NAME;
-
 use clap::{ArgAction, Parser, Subcommand};
 
 #[derive(Parser)]
@@ -67,9 +65,9 @@ pub struct AddCommand {
 
 #[derive(Parser)]
 pub struct ListCommand {
-    /// The name of group
-    #[arg(short = 'g', long = "group")]
-    pub group: Option<String>,
+    /// Show all groups
+    #[arg(short = 'a', long = "all", action=ArgAction::SetTrue)]
+    pub all: bool,
 }
 
 #[derive(Parser)]
@@ -95,6 +93,5 @@ pub struct RmCommand {
 #[derive(Parser)]
 pub struct SwitchCommand {
     /// The name of group
-    #[arg(short = 'g', long = "group", default_value = GLOBAL_DEFAULT_GROUP_NAME)]
-    pub group: String,
+    pub group: Option<String>,
 }
