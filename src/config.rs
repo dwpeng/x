@@ -143,7 +143,7 @@ impl Config {
                 .entry(group_name.clone())
                 .or_insert_with(Group::default);
             g.index = g.bins.len() - 1;
-            for (name, file_path) in expand_dir(path)? {
+            for (name, file_path) in collect_executables_from_dir(path)? {
                 let bin = Bin {
                     name: name.clone(),
                     path: file_path.clone(),
@@ -215,7 +215,6 @@ impl Config {
     }
 
     pub fn find(&self, group: &str, name: &str) -> Option<&Bin> {
-        // check if active first
         if let Some(g) = self.groups.get(group) {
             if let Some(b) = g.bins.get(name) {
                 return Some(b);
@@ -275,7 +274,7 @@ fn is_executable(p: &Path) -> bool {
         .unwrap_or(false)
 }
 
-fn expand_dir(dir: &Path) -> Result<Vec<(String, PathBuf)>> {
+fn collect_executables_from_dir(dir: &Path) -> Result<Vec<(String, PathBuf)>> {
     let mut res = Vec::new();
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
