@@ -51,6 +51,37 @@ impl Default for Group {
     }
 }
 
+impl Group {
+    pub fn remove_bin_by_name(&mut self, name: &str, bin_dir: &PathBuf) -> Result<()> {
+        if let Some(bin) = self.bins.get(name) {
+            bin.uninstall(bin_dir)?;
+            self.bins.remove(name);
+        }
+        Ok(())
+    }
+
+    pub fn remove_bin_by_path(&mut self, path: &PathBuf, bin_dir: &PathBuf) -> Result<()> {
+        let mut names = Vec::new();
+
+        for (name, bin) in self.bins.iter() {
+            if bin.source_dir.is_none() {
+                continue;
+            }
+            if let Some(source_dir) = bin.source_dir.as_ref() {
+                if source_dir == path {
+                    bin.uninstall(bin_dir)?;
+                    names.push(name.clone());
+                }
+            }
+        }
+        for name in names {
+            self.bins.remove(&name);
+        }
+
+        Ok(())
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct Config {
@@ -147,7 +178,7 @@ impl Config {
                 let bin = Bin {
                     name: name.clone(),
                     path: file_path.clone(),
-                    source_dir: Some(path.to_path_buf()),
+                    source_dir: Some(path.to_path_buf().canonicalize().unwrap()),
                 };
                 if self.active_group == group_name {
                     bin.install(&self.bin_dir)?;
@@ -192,12 +223,15 @@ impl Config {
     pub fn remove(&mut self, group: &str, name: Option<&str>, delete: bool) -> Result<()> {
         let mut delete_group = false;
         if let Some(g) = self.groups.get_mut(group) {
-            if let Some(n) = name {
-                let bin = g.bins.get(n);
-                if let Some(b) = bin {
-                    b.uninstall(&self.bin_dir)?;
+            if let Some(name) = name {
+                if name.contains("/") || name.contains("\\") {
+                    // is path
+                    // try to find path in bins
+                    let path = PathBuf::from(name);
+                    g.remove_bin_by_path(&path, &self.bin_dir)?;
+                } else {
+                    g.remove_bin_by_name(name, &self.bin_dir)?;
                 }
-                g.bins.remove(n);
             } else {
                 if delete {
                     delete_group = true;
