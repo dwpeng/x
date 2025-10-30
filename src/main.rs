@@ -272,12 +272,13 @@ pub static AVALIABLE_SUBCOMMANDS: &[&str] =
     &["run", "r", "add", "rm", "list", "ls", "init", "s", "switch"];
 
 fn main() {
-    let args = std::env::args().collect::<Vec<String>>();
-    if args.len() >= 2 && !AVALIABLE_SUBCOMMANDS.contains(&args[1].as_str()) {
-        let run_cmd = RunCommand::parse();
-        run(run_cmd);
-        return;
-    }
+    let mut args = std::env::args();
+    if let Some(first_arg) = args.nth(1)
+        && !AVALIABLE_SUBCOMMANDS.contains(&first_arg.as_str()) {
+            let run_cmd = RunCommand::parse();
+            run(run_cmd);
+            return;
+        }
 
     let cli = Cli::parse();
     match cli.command {
