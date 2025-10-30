@@ -242,7 +242,7 @@ pub fn rm(cmd: RmCommand) {
             std::process::exit(1);
         });
 
-    conf.save(&get_config_path().unwrap()).unwrap_or_else(|e| {
+    conf.save(get_config_path().unwrap()).unwrap_or_else(|e| {
         eprintln!("Error: cannot save config: {}", e);
         std::process::exit(1);
     });
@@ -261,23 +261,24 @@ pub fn switch(cmd: SwitchCommand) {
         std::process::exit(1);
     });
 
-    conf.save(&get_config_path().unwrap()).unwrap_or_else(|e| {
+    conf.save(get_config_path().unwrap()).unwrap_or_else(|e| {
         eprintln!("Error: cannot save config: {}", e);
         std::process::exit(1);
     });
     println!("Switched to group {}", conf.active_group.green());
 }
 
-pub static AVALIABLE_SUBCOMMANDS: &'static [&'static str] =
+pub static AVAILABLE_SUBCOMMANDS: &[&str] =
     &["run", "r", "add", "rm", "list", "ls", "init", "s", "switch"];
 
 fn main() {
-    let args = std::env::args().collect::<Vec<String>>();
-    if args.len() >= 2 && !AVALIABLE_SUBCOMMANDS.contains(&args[1].as_str()) {
-        let run_cmd = RunCommand::parse();
-        run(run_cmd);
-        return;
-    }
+    let mut args = std::env::args();
+    if let Some(first_arg) = args.nth(1)
+        && !AVAILABLE_SUBCOMMANDS.contains(&first_arg.as_str()) {
+            let run_cmd = RunCommand::parse();
+            run(run_cmd);
+            return;
+        }
 
     let cli = Cli::parse();
     match cli.command {
