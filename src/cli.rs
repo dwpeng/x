@@ -37,6 +37,26 @@ pub enum Commands {
     #[command(visible_alias = "s")]
     #[command()]
     Switch(SwitchCommand),
+
+    /// Rename an executable alias
+    #[command()]
+    Rename(RenameCommand),
+
+    /// Show detailed information about an executable
+    #[command()]
+    Info(InfoCommand),
+
+    /// Enable an executable
+    #[command()]
+    Enable(EnableCommand),
+
+    /// Disable an executable
+    #[command()]
+    Disable(DisableCommand),
+
+    /// Search for executables
+    #[command()]
+    Search(SearchCommand),
 }
 
 #[derive(Parser)]
@@ -94,4 +114,48 @@ pub struct RmCommand {
 pub struct SwitchCommand {
     /// The name of group
     pub group: Option<String>,
+}
+
+#[derive(Parser)]
+pub struct RenameCommand {
+    /// The name of group
+    #[arg(short = 'g', long = "group")]
+    pub group: Option<String>,
+    /// The current name of the executable
+    pub old_name: String,
+    /// The new name for the executable
+    pub new_name: String,
+}
+
+#[derive(Parser)]
+pub struct InfoCommand {
+    /// The name of group
+    #[arg(short = 'g', long = "group")]
+    pub group: Option<String>,
+    /// The name of the executable
+    pub name: String,
+}
+
+#[derive(Parser)]
+pub struct EnableCommand {
+    /// The name of group
+    #[arg(short = 'g', long = "group")]
+    pub group: Option<String>,
+    /// The name of the executable
+    pub name: String,
+}
+
+#[derive(Parser)]
+pub struct DisableCommand {
+    /// The name of group
+    #[arg(short = 'g', long = "group")]
+    pub group: Option<String>,
+    /// The name of the executable
+    pub name: String,
+}
+
+#[derive(Parser)]
+pub struct SearchCommand {
+    /// Search query (matches against executable name or path)
+    pub query: String,
 }
