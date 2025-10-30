@@ -297,19 +297,16 @@ impl Config {
             anyhow::bail!("executable {} already exists in group {}", new_name, group);
         }
         
-        // Uninstall old symlink
+        // Uninstall old symlink using the bin's uninstall method
         if self.active_group == group {
-            let old_path = self.bin_dir.join(old_name);
-            if old_path.exists() {
-                fs::remove_file(old_path)?;
-            }
+            bin.uninstall(&self.bin_dir)?;
         }
         
         // Create new bin with new name
         let mut new_bin = bin.clone();
         new_bin.name = new_name.to_string();
         
-        // Install new symlink if in active group
+        // Install new symlink if in active group (install() respects the enabled flag)
         if self.active_group == group {
             new_bin.install(&self.bin_dir)?;
         }
