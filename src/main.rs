@@ -268,13 +268,13 @@ pub fn switch(cmd: SwitchCommand) {
     println!("Switched to group {}", conf.active_group.green());
 }
 
-pub static AVALIABLE_SUBCOMMANDS: &[&str] =
+pub static AVAILABLE_SUBCOMMANDS: &[&str] =
     &["run", "r", "add", "rm", "list", "ls", "init", "s", "switch"];
 
 fn main() {
     let mut args = std::env::args();
     if let Some(first_arg) = args.nth(1)
-        && !AVALIABLE_SUBCOMMANDS.contains(&first_arg.as_str()) {
+        && !AVAILABLE_SUBCOMMANDS.contains(&first_arg.as_str()) {
             let run_cmd = RunCommand::parse();
             run(run_cmd);
             return;
