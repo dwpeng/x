@@ -14,7 +14,7 @@ pub struct Bin {
 }
 
 impl Bin {
-    pub fn install(&self, dir_path: &PathBuf) -> Result<()> {
+    pub fn install(&self, dir_path: &Path) -> Result<()> {
         if dir_path.join(self.name.as_str()).exists() {
             fs::remove_file(dir_path.join(self.name.as_str()))?;
         }
@@ -24,35 +24,26 @@ impl Bin {
         #[cfg(windows)]
         std::os::windows::fs::symlink_file(&self.path, dir_path.join(self.name.as_str()))?;
 
-        return Ok(());
+        Ok(())
     }
 
-    pub fn uninstall(&self, dir_path: &PathBuf) -> Result<()> {
+    pub fn uninstall(&self, dir_path: &Path) -> Result<()> {
         if dir_path.join(self.name.as_str()).exists() {
             fs::remove_file(dir_path.join(self.name.as_str()))?;
         }
-        return Ok(());
+        Ok(())
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct Group {
     pub index: usize,
     pub bins: HashMap<String, Bin>,
 }
 
-impl Default for Group {
-    fn default() -> Self {
-        Group {
-            index: 0,
-            bins: HashMap::new(),
-        }
-    }
-}
-
 impl Group {
-    pub fn remove_bin_by_name(&mut self, name: &str, bin_dir: &PathBuf) -> Result<()> {
+    pub fn remove_bin_by_name(&mut self, name: &str, bin_dir: &Path) -> Result<()> {
         if let Some(bin) = self.bins.get(name) {
             bin.uninstall(bin_dir)?;
             self.bins.remove(name);
@@ -60,21 +51,19 @@ impl Group {
         Ok(())
     }
 
-    pub fn remove_bin_by_path(&mut self, path: &PathBuf, bin_dir: &PathBuf) -> Result<()> {
-        let mut names = Vec::new();
+    pub fn remove_bin_by_path(&mut self, path: &PathBuf, bin_dir: &Path) -> Result<()> {
+        let to_remove: Vec<_> = self.bins.iter()
+            .filter_map(|(name, bin)| {
+                bin.source_dir.as_ref()
+                    .filter(|source_dir| *source_dir == path)
+                    .map(|_| name.clone())
+            })
+            .collect();
 
-        for (name, bin) in self.bins.iter() {
-            if bin.source_dir.is_none() {
-                continue;
+        for name in to_remove {
+            if let Some(bin) = self.bins.get(&name) {
+                bin.uninstall(bin_dir)?;
             }
-            if let Some(source_dir) = bin.source_dir.as_ref() {
-                if source_dir == path {
-                    bin.uninstall(bin_dir)?;
-                    names.push(name.clone());
-                }
-            }
-        }
-        for name in names {
             self.bins.remove(&name);
         }
 
@@ -90,7 +79,7 @@ pub struct Config {
     pub groups: HashMap<String, Group>,
 }
 
-pub static GLOBAL_DEFAULT_GROUP_NAME: &'static str = "global-default-group-name";
+pub static GLOBAL_DEFAULT_GROUP_NAME: &str = "global-default-group-name";
 
 pub fn get_bin_dir() -> Result<PathBuf> {
     let home_dir = dirs::home_dir().ok_or_else(|| anyhow!("cannot get home dir"))?;
@@ -110,7 +99,7 @@ impl Default for Config {
         let bin_dir = bin_dir.unwrap();
         Config {
             active_group: GLOBAL_DEFAULT_GROUP_NAME.to_string(),
-            bin_dir: bin_dir,
+            bin_dir,
             groups: HashMap::new(),
         }
     }
@@ -147,10 +136,10 @@ impl Config {
         let group_name = group.into();
 
         if path.is_file() && is_executable(path) {
-            let bin_name = if name.is_none() {
-                executable_name(path)?
+            let bin_name = if let Some(name) = name {
+                name
             } else {
-                name.unwrap()
+                executable_name(path)?
             };
             let bin = Bin {
                 name: bin_name.clone(),
@@ -162,7 +151,7 @@ impl Config {
                 bin.install(&self.bin_dir)?;
             }
 
-            let g = self.groups.entry(group_name).or_insert_with(Group::default);
+            let g = self.groups.entry(group_name).or_default();
             g.bins.insert(bin_name, bin);
             g.index = g.bins.len() - 1;
             return Ok(());
@@ -172,18 +161,18 @@ impl Config {
             let g = self
                 .groups
                 .entry(group_name.clone())
-                .or_insert_with(Group::default);
+                .or_default();
             g.index = g.bins.len() - 1;
             for (name, file_path) in collect_executables_from_dir(path)? {
                 let bin = Bin {
                     name: name.clone(),
-                    path: file_path.clone(),
+                    path: file_path,
                     source_dir: Some(path.to_path_buf().canonicalize().unwrap()),
                 };
                 if self.active_group == group_name {
                     bin.install(&self.bin_dir)?;
                 }
-                g.bins.insert(name.clone(), bin);
+                g.bins.insert(name, bin);
             }
             return Ok(());
         }
@@ -193,14 +182,13 @@ impl Config {
 
     pub fn pretty_print(&self, group: Option<&str>) {
         let mut groups: Vec<(&String, &Group)> = self.groups.iter().collect();
-        groups.sort_by(|a, b| a.0.cmp(&b.0));
+        groups.sort_by(|a, b| a.0.cmp(b.0));
 
         for (gn, g) in groups {
-            if let Some(filter) = group {
-                if filter != gn {
+            if let Some(filter) = group
+                && filter != gn {
                     continue;
                 }
-            }
 
             if gn == &self.active_group {
                 println!("{} {}", "*".green().bold(), gn.cyan().bold());
@@ -232,14 +220,12 @@ impl Config {
                 } else {
                     g.remove_bin_by_name(name, &self.bin_dir)?;
                 }
-            } else {
-                if delete {
-                    delete_group = true;
-                    for (_, bin) in g.bins.iter() {
-                        bin.uninstall(&self.bin_dir)?;
-                    }
-                    g.bins.clear();
+            } else if delete {
+                delete_group = true;
+                for (_, bin) in g.bins.iter() {
+                    bin.uninstall(&self.bin_dir)?;
                 }
+                g.bins.clear();
             }
         }
         if delete_group {
@@ -249,16 +235,15 @@ impl Config {
     }
 
     pub fn find(&self, group: &str, name: &str) -> Option<&Bin> {
-        if let Some(g) = self.groups.get(group) {
-            if let Some(b) = g.bins.get(name) {
+        if let Some(g) = self.groups.get(group)
+            && let Some(b) = g.bins.get(name) {
                 return Some(b);
             }
-        }
         None
     }
 
     pub fn switch(&mut self, need_active_group_name: &str) -> Result<()> {
-        if self.active_group == need_active_group_name.to_string() {
+        if self.active_group == need_active_group_name {
             return Ok(());
         }
 

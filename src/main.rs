@@ -242,7 +242,7 @@ pub fn rm(cmd: RmCommand) {
             std::process::exit(1);
         });
 
-    conf.save(&get_config_path().unwrap()).unwrap_or_else(|e| {
+    conf.save(get_config_path().unwrap()).unwrap_or_else(|e| {
         eprintln!("Error: cannot save config: {}", e);
         std::process::exit(1);
     });
@@ -261,14 +261,14 @@ pub fn switch(cmd: SwitchCommand) {
         std::process::exit(1);
     });
 
-    conf.save(&get_config_path().unwrap()).unwrap_or_else(|e| {
+    conf.save(get_config_path().unwrap()).unwrap_or_else(|e| {
         eprintln!("Error: cannot save config: {}", e);
         std::process::exit(1);
     });
     println!("Switched to group {}", conf.active_group.green());
 }
 
-pub static AVALIABLE_SUBCOMMANDS: &'static [&'static str] =
+pub static AVALIABLE_SUBCOMMANDS: &[&str] =
     &["run", "r", "add", "rm", "list", "ls", "init", "s", "switch"];
 
 fn main() {
