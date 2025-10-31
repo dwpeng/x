@@ -508,7 +508,7 @@ pub fn search(cmd: SearchCommand) {
 
 pub static AVAILABLE_SUBCOMMANDS: &[&str] = &[
     "run", "r", "add", "rm", "list", "ls", "init", "s", "switch", "rename", "info", "enable",
-    "disable", "search",
+    "disable", "search", "help",
 ];
 
 fn main() {
