@@ -455,3 +455,121 @@ pub fn load_config(create: bool) -> Result<Config> {
         Config::load(&conf_path)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::io::Write;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_find_returns_disabled_executable() {
+        let temp_dir = TempDir::new().unwrap();
+        let bin_dir = temp_dir.path().join("bin");
+        fs::create_dir_all(&bin_dir).unwrap();
+
+        // Create a test executable
+        let exe_path = temp_dir.path().join("test_exe");
+        let mut exe_file = fs::File::create(&exe_path).unwrap();
+        writeln!(exe_file, "#!/bin/bash\necho test").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = exe_file.metadata().unwrap().permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(&exe_path, perms).unwrap();
+        }
+
+        // Create config with a disabled executable
+        let mut config = Config {
+            active_group: "test-group".to_string(),
+            bin_dir: bin_dir.clone(),
+            groups: HashMap::new(),
+        };
+
+        let bin = Bin {
+            name: "test_exe".to_string(),
+            path: exe_path.clone(),
+            source_dir: None,
+            enabled: false,
+        };
+
+        let mut group = Group {
+            index: 0,
+            bins: HashMap::new(),
+        };
+        group.bins.insert("test_exe".to_string(), bin);
+        config.groups.insert("test-group".to_string(), group);
+
+        // Test that find returns the bin even if disabled
+        let result = config.find("test-group", "test_exe");
+        assert!(result.is_some());
+        let found_bin = result.unwrap();
+        assert_eq!(found_bin.name, "test_exe");
+        assert_eq!(found_bin.enabled, false);
+    }
+
+    #[test]
+    fn test_set_enabled() {
+        let temp_dir = TempDir::new().unwrap();
+        let bin_dir = temp_dir.path().join("bin");
+        fs::create_dir_all(&bin_dir).unwrap();
+
+        // Create a test executable
+        let exe_path = temp_dir.path().join("test_exe");
+        let mut exe_file = fs::File::create(&exe_path).unwrap();
+        writeln!(exe_file, "#!/bin/bash\necho test").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = exe_file.metadata().unwrap().permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(&exe_path, perms).unwrap();
+        }
+
+        let mut config = Config {
+            active_group: "test-group".to_string(),
+            bin_dir: bin_dir.clone(),
+            groups: HashMap::new(),
+        };
+
+        let bin = Bin {
+            name: "test_exe".to_string(),
+            path: exe_path.clone(),
+            source_dir: None,
+            enabled: true,
+        };
+
+        let mut group = Group {
+            index: 0,
+            bins: HashMap::new(),
+        };
+        group.bins.insert("test_exe".to_string(), bin);
+        config.groups.insert("test-group".to_string(), group);
+
+        // Install the executable
+        config.groups.get("test-group").unwrap()
+            .bins.get("test_exe").unwrap()
+            .install(&bin_dir).unwrap();
+
+        // Check symlink exists
+        assert!(bin_dir.join("test_exe").exists());
+
+        // Disable the executable
+        config.set_enabled("test-group", "test_exe", false).unwrap();
+        assert_eq!(config.groups.get("test-group").unwrap()
+            .bins.get("test_exe").unwrap().enabled, false);
+        
+        // Check symlink is removed
+        assert!(!bin_dir.join("test_exe").exists());
+
+        // Enable the executable
+        config.set_enabled("test-group", "test_exe", true).unwrap();
+        assert_eq!(config.groups.get("test-group").unwrap()
+            .bins.get("test_exe").unwrap().enabled, true);
+        
+        // Check symlink is created again
+        assert!(bin_dir.join("test_exe").exists());
+    }
+}
