@@ -66,6 +66,15 @@ pub fn run(cmd: RunCommand) {
         exit(1);
     });
 
+    if !r.enabled {
+        eprintln!(
+            "Error: Program {} is disabled in group {}",
+            program.red(),
+            group_name.red()
+        );
+        exit(1);
+    }
+
     if !Path::new(&r.path).exists() {
         eprintln!(
             "Error: Program path {} does not exist",
