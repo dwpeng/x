@@ -2,6 +2,7 @@ use x::cli::*;
 use x::config::{Config, GLOBAL_DEFAULT_GROUP_NAME, get_config_path, load_config};
 use x::confirm;
 use x::process;
+use x::shell;
 
 use clap::Parser;
 use colored::Colorize;
@@ -197,10 +198,72 @@ pub fn init(cmd: InitCommand) {
         conf_path.display().to_string().color(colored::Color::Green)
     );
 
-    println!("Add the following to your shell config file to use x");
     let bin_dir = conf.bin_dir.to_str().unwrap();
-    let msg = format!("export PATH=\"{}:$PATH\"", bin_dir);
-    println!("{}", msg.color(colored::Color::Green));
+
+    // Detect shell and automatically add PATH
+    let shell_type = shell::detect_shell();
+    match shell_type {
+        shell::ShellType::Unknown => {
+            // Fallback to manual instructions if shell is unknown
+            println!(
+                "\nCould not detect shell type. Please add the following to your shell config file:"
+            );
+            let msg = format!("export PATH=\"{}:$PATH\"", bin_dir);
+            println!("{}", msg.color(colored::Color::Green));
+        }
+        _ => {
+            match shell::get_shell_config_path(&shell_type) {
+                Ok(config_path) => {
+                    // Check if PATH already exists
+                    match shell::path_exists_in_config(&config_path, bin_dir) {
+                        Ok(true) => {
+                            println!(
+                                "\nPATH already exists in {}",
+                                config_path.display().to_string().green()
+                            );
+                            println!("Skipping PATH configuration.");
+                        }
+                        Ok(false) => {
+                            // Add PATH to config
+                            match shell::add_path_to_config(&shell_type, &config_path, bin_dir) {
+                                Ok(_) => {
+                                    println!(
+                                        "\nSuccessfully added PATH to {}",
+                                        config_path.display().to_string().green()
+                                    );
+                                    println!(
+                                        "Please run {} or restart your shell to apply changes.",
+                                        format!("source {}", config_path.display()).green()
+                                    );
+                                }
+                                Err(e) => {
+                                    eprintln!(
+                                        "\nWarning: Failed to add PATH to config file: {}",
+                                        e
+                                    );
+                                    println!(
+                                        "Please add the following to your shell config file manually:"
+                                    );
+                                    let msg = format!("export PATH=\"{}:$PATH\"", bin_dir);
+                                    println!("{}", msg.color(colored::Color::Green));
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("\nWarning: Failed to check if PATH exists: {}", e);
+                            println!("Please verify your PATH configuration manually.");
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("\nWarning: Failed to get shell config path: {}", e);
+                    println!("Please add the following to your shell config file manually:");
+                    let msg = format!("export PATH=\"{}:$PATH\"", bin_dir);
+                    println!("{}", msg.color(colored::Color::Green));
+                }
+            }
+        }
+    }
 }
 
 pub fn rm(cmd: RmCommand) {
@@ -303,29 +366,56 @@ pub fn info(cmd: InfoCommand) {
 
     let group_name = cmd.group.as_deref().unwrap_or(GLOBAL_DEFAULT_GROUP_NAME);
 
-    let bin = conf.get_bin_info(group_name, &cmd.name).unwrap_or_else(|e| {
-        eprintln!("Error: {}", e);
-        std::process::exit(1);
-    });
+    let bin = conf
+        .get_bin_info(group_name, &cmd.name)
+        .unwrap_or_else(|e| {
+            eprintln!("Error: {}", e);
+            std::process::exit(1);
+        });
 
     println!("{}", "Executable Information".bold().cyan());
     println!("  {}: {}", "Name".bold(), bin.name.green());
-    println!("  {}: {}", "Path".bold(), bin.path.display().to_string().green());
+    println!(
+        "  {}: {}",
+        "Path".bold(),
+        bin.path.display().to_string().green()
+    );
     println!("  {}: {}", "Group".bold(), group_name.cyan());
-    println!("  {}: {}", "Status".bold(), 
-        if bin.enabled { "enabled".green() } else { "disabled".red() });
-    
+    println!(
+        "  {}: {}",
+        "Status".bold(),
+        if bin.enabled {
+            "enabled".green()
+        } else {
+            "disabled".red()
+        }
+    );
+
     if let Some(source_dir) = &bin.source_dir {
-        println!("  {}: {}", "Source Directory".bold(), source_dir.display().to_string().yellow());
+        println!(
+            "  {}: {}",
+            "Source Directory".bold(),
+            source_dir.display().to_string().yellow()
+        );
     }
-    
-    println!("  {}: {}", "In Active Group".bold(),
-        if conf.active_group == group_name { "yes".green() } else { "no".yellow() });
-    
+
+    println!(
+        "  {}: {}",
+        "In Active Group".bold(),
+        if conf.active_group == group_name {
+            "yes".green()
+        } else {
+            "no".yellow()
+        }
+    );
+
     // Check if file exists
     let exists = bin.path.exists();
-    println!("  {}: {}", "File Exists".bold(), 
-        if exists { "yes".green() } else { "no".red() });
+    println!(
+        "  {}: {}",
+        "File Exists".bold(),
+        if exists { "yes".green() } else { "no".red() }
+    );
 }
 
 pub fn enable(cmd: EnableCommand) {
@@ -347,7 +437,11 @@ pub fn enable(cmd: EnableCommand) {
         std::process::exit(1);
     });
 
-    println!("Enabled {} in group {}", cmd.name.green(), group_name.cyan());
+    println!(
+        "Enabled {} in group {}",
+        cmd.name.green(),
+        group_name.cyan()
+    );
 }
 
 pub fn disable(cmd: DisableCommand) {
@@ -369,7 +463,11 @@ pub fn disable(cmd: DisableCommand) {
         std::process::exit(1);
     });
 
-    println!("Disabled {} in group {}", cmd.name.green(), group_name.cyan());
+    println!(
+        "Disabled {} in group {}",
+        cmd.name.green(),
+        group_name.cyan()
+    );
 }
 
 pub fn search(cmd: SearchCommand) {
@@ -385,10 +483,18 @@ pub fn search(cmd: SearchCommand) {
         return;
     }
 
-    println!("Found {} executable(s) matching '{}':", results.len(), cmd.query.yellow());
+    println!(
+        "Found {} executable(s) matching '{}':",
+        results.len(),
+        cmd.query.yellow()
+    );
     for (group_name, bin_name, bin) in results {
         let status = if bin.enabled { "" } else { " [disabled]" };
-        let active = if conf.active_group == group_name { "*" } else { " " };
+        let active = if conf.active_group == group_name {
+            "*"
+        } else {
+            " "
+        };
         println!(
             "  {} {} / {} -> {}{}",
             active.green().bold(),
@@ -400,17 +506,20 @@ pub fn search(cmd: SearchCommand) {
     }
 }
 
-pub static AVAILABLE_SUBCOMMANDS: &[&str] =
-    &["run", "r", "add", "rm", "list", "ls", "init", "s", "switch", "rename", "info", "enable", "disable", "search"];
+pub static AVAILABLE_SUBCOMMANDS: &[&str] = &[
+    "run", "r", "add", "rm", "list", "ls", "init", "s", "switch", "rename", "info", "enable",
+    "disable", "search",
+];
 
 fn main() {
     let mut args = std::env::args();
     if let Some(first_arg) = args.nth(1)
-        && !AVAILABLE_SUBCOMMANDS.contains(&first_arg.as_str()) {
-            let run_cmd = RunCommand::parse();
-            run(run_cmd);
-            return;
-        }
+        && !AVAILABLE_SUBCOMMANDS.contains(&first_arg.as_str())
+    {
+        let run_cmd = RunCommand::parse();
+        run(run_cmd);
+        return;
+    }
 
     let cli = Cli::parse();
     match cli.command {

@@ -1,6 +1,7 @@
 pub mod cli;
 pub mod config;
 pub mod process;
+pub mod shell;
 
 use std::io::Write;
 pub fn confirm(message: &str) -> bool {
