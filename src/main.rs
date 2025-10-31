@@ -268,8 +268,140 @@ pub fn switch(cmd: SwitchCommand) {
     println!("Switched to group {}", conf.active_group.green());
 }
 
+pub fn rename(cmd: RenameCommand) {
+    let mut conf = load_config(false).unwrap_or_else(|e| {
+        eprintln!("Error: cannot load config: {}", e);
+        std::process::exit(1);
+    });
+
+    let group_name = cmd.group.as_deref().unwrap_or(GLOBAL_DEFAULT_GROUP_NAME);
+
+    conf.rename(group_name, &cmd.old_name, &cmd.new_name)
+        .unwrap_or_else(|e| {
+            eprintln!("Error: cannot rename executable: {}", e);
+            std::process::exit(1);
+        });
+
+    conf.save(get_config_path().unwrap()).unwrap_or_else(|e| {
+        eprintln!("Error: cannot save config: {}", e);
+        std::process::exit(1);
+    });
+
+    println!(
+        "Renamed {} to {} in group {}",
+        cmd.old_name.green(),
+        cmd.new_name.green(),
+        group_name.cyan()
+    );
+}
+
+pub fn info(cmd: InfoCommand) {
+    let conf = load_config(false).unwrap_or_else(|e| {
+        eprintln!("Error: cannot load config: {}", e);
+        std::process::exit(1);
+    });
+
+    let group_name = cmd.group.as_deref().unwrap_or(GLOBAL_DEFAULT_GROUP_NAME);
+
+    let bin = conf.get_bin_info(group_name, &cmd.name).unwrap_or_else(|e| {
+        eprintln!("Error: {}", e);
+        std::process::exit(1);
+    });
+
+    println!("{}", "Executable Information".bold().cyan());
+    println!("  {}: {}", "Name".bold(), bin.name.green());
+    println!("  {}: {}", "Path".bold(), bin.path.display().to_string().green());
+    println!("  {}: {}", "Group".bold(), group_name.cyan());
+    println!("  {}: {}", "Status".bold(), 
+        if bin.enabled { "enabled".green() } else { "disabled".red() });
+    
+    if let Some(source_dir) = &bin.source_dir {
+        println!("  {}: {}", "Source Directory".bold(), source_dir.display().to_string().yellow());
+    }
+    
+    println!("  {}: {}", "In Active Group".bold(),
+        if conf.active_group == group_name { "yes".green() } else { "no".yellow() });
+    
+    // Check if file exists
+    let exists = bin.path.exists();
+    println!("  {}: {}", "File Exists".bold(), 
+        if exists { "yes".green() } else { "no".red() });
+}
+
+pub fn enable(cmd: EnableCommand) {
+    let mut conf = load_config(false).unwrap_or_else(|e| {
+        eprintln!("Error: cannot load config: {}", e);
+        std::process::exit(1);
+    });
+
+    let group_name = cmd.group.as_deref().unwrap_or(GLOBAL_DEFAULT_GROUP_NAME);
+
+    conf.set_enabled(group_name, &cmd.name, true)
+        .unwrap_or_else(|e| {
+            eprintln!("Error: cannot enable executable: {}", e);
+            std::process::exit(1);
+        });
+
+    conf.save(get_config_path().unwrap()).unwrap_or_else(|e| {
+        eprintln!("Error: cannot save config: {}", e);
+        std::process::exit(1);
+    });
+
+    println!("Enabled {} in group {}", cmd.name.green(), group_name.cyan());
+}
+
+pub fn disable(cmd: DisableCommand) {
+    let mut conf = load_config(false).unwrap_or_else(|e| {
+        eprintln!("Error: cannot load config: {}", e);
+        std::process::exit(1);
+    });
+
+    let group_name = cmd.group.as_deref().unwrap_or(GLOBAL_DEFAULT_GROUP_NAME);
+
+    conf.set_enabled(group_name, &cmd.name, false)
+        .unwrap_or_else(|e| {
+            eprintln!("Error: cannot disable executable: {}", e);
+            std::process::exit(1);
+        });
+
+    conf.save(get_config_path().unwrap()).unwrap_or_else(|e| {
+        eprintln!("Error: cannot save config: {}", e);
+        std::process::exit(1);
+    });
+
+    println!("Disabled {} in group {}", cmd.name.green(), group_name.cyan());
+}
+
+pub fn search(cmd: SearchCommand) {
+    let conf = load_config(false).unwrap_or_else(|e| {
+        eprintln!("Error: cannot load config: {}", e);
+        std::process::exit(1);
+    });
+
+    let results = conf.search(&cmd.query);
+
+    if results.is_empty() {
+        println!("No executables found matching '{}'", cmd.query.yellow());
+        return;
+    }
+
+    println!("Found {} executable(s) matching '{}':", results.len(), cmd.query.yellow());
+    for (group_name, bin_name, bin) in results {
+        let status = if bin.enabled { "" } else { " [disabled]" };
+        let active = if conf.active_group == group_name { "*" } else { " " };
+        println!(
+            "  {} {} / {} -> {}{}",
+            active.green().bold(),
+            group_name.cyan(),
+            bin_name.green(),
+            bin.path.display().to_string().green(),
+            status.red()
+        );
+    }
+}
+
 pub static AVAILABLE_SUBCOMMANDS: &[&str] =
-    &["run", "r", "add", "rm", "list", "ls", "init", "s", "switch"];
+    &["run", "r", "add", "rm", "list", "ls", "init", "s", "switch", "rename", "info", "enable", "disable", "search"];
 
 fn main() {
     let mut args = std::env::args();
@@ -288,5 +420,10 @@ fn main() {
         Commands::Init(i) => init(i),
         Commands::Rm(r) => rm(r),
         Commands::Switch(s) => switch(s),
+        Commands::Rename(r) => rename(r),
+        Commands::Info(i) => info(i),
+        Commands::Enable(e) => enable(e),
+        Commands::Disable(d) => disable(d),
+        Commands::Search(s) => search(s),
     }
 }
