@@ -300,7 +300,7 @@ A: Use custom names with the `-n` flag when adding to avoid conflicts.
 A: Remove the config directory (`~/.config/x`), bin directory (`~/.local/bin/x`), and remove the PATH entry from your shell config file.
 
 **Q: Does x support Windows?**  
-A: Yes! x has cross-platform support for Windows, macOS, and Linux.
+A: The code includes cross-platform support for Windows, macOS, and Linux, but it is currently only tested on Linux.
 
 ---
 
