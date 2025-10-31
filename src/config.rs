@@ -25,7 +25,7 @@ impl Bin {
         if !self.enabled {
             return Ok(());
         }
-        
+
         if dir_path.join(self.name.as_str()).exists() {
             fs::remove_file(dir_path.join(self.name.as_str()))?;
         }
@@ -63,9 +63,12 @@ impl Group {
     }
 
     pub fn remove_bin_by_path(&mut self, path: &PathBuf, bin_dir: &Path) -> Result<()> {
-        let to_remove: Vec<_> = self.bins.iter()
+        let to_remove: Vec<_> = self
+            .bins
+            .iter()
             .filter_map(|(name, bin)| {
-                bin.source_dir.as_ref()
+                bin.source_dir
+                    .as_ref()
                     .filter(|source_dir| *source_dir == path)
                     .map(|_| name.clone())
             })
@@ -170,10 +173,7 @@ impl Config {
         }
 
         if path.is_dir() {
-            let g = self
-                .groups
-                .entry(group_name.clone())
-                .or_default();
+            let g = self.groups.entry(group_name.clone()).or_default();
             g.index = g.bins.len() - 1;
             for (name, file_path) in collect_executables_from_dir(path)? {
                 let bin = Bin {
@@ -199,9 +199,10 @@ impl Config {
 
         for (gn, g) in groups {
             if let Some(filter) = group
-                && filter != gn {
-                    continue;
-                }
+                && filter != gn
+            {
+                continue;
+            }
 
             if gn == &self.active_group {
                 println!("{} {}", "*".green().bold(), gn.cyan().bold());
@@ -251,9 +252,10 @@ impl Config {
 
     pub fn find(&self, group: &str, name: &str) -> Option<&Bin> {
         if let Some(g) = self.groups.get(group)
-            && let Some(b) = g.bins.get(name) {
-                return Some(b);
-            }
+            && let Some(b) = g.bins.get(name)
+        {
+            return Some(b);
+        }
         None
     }
 
@@ -285,49 +287,57 @@ impl Config {
     }
 
     pub fn rename(&mut self, group: &str, old_name: &str, new_name: &str) -> Result<()> {
-        let g = self.groups.get_mut(group)
+        let g = self
+            .groups
+            .get_mut(group)
             .ok_or_else(|| anyhow!("group {} does not exist", group))?;
-        
-        let bin = g.bins.remove(old_name)
+
+        let bin = g
+            .bins
+            .remove(old_name)
             .ok_or_else(|| anyhow!("executable {} not found in group {}", old_name, group))?;
-        
+
         if g.bins.contains_key(new_name) {
             // Restore the old bin
             g.bins.insert(old_name.to_string(), bin);
             anyhow::bail!("executable {} already exists in group {}", new_name, group);
         }
-        
+
         // Uninstall old symlink using the bin's uninstall method
         if self.active_group == group {
             bin.uninstall(&self.bin_dir)?;
         }
-        
+
         // Create new bin with new name
         let mut new_bin = bin.clone();
         new_bin.name = new_name.to_string();
-        
+
         // Install new symlink if in active group (install() respects the enabled flag)
         if self.active_group == group {
             new_bin.install(&self.bin_dir)?;
         }
-        
+
         g.bins.insert(new_name.to_string(), new_bin);
         Ok(())
     }
 
     pub fn set_enabled(&mut self, group: &str, name: &str, enabled: bool) -> Result<()> {
-        let g = self.groups.get_mut(group)
+        let g = self
+            .groups
+            .get_mut(group)
             .ok_or_else(|| anyhow!("group {} does not exist", group))?;
-        
-        let bin = g.bins.get_mut(name)
+
+        let bin = g
+            .bins
+            .get_mut(name)
             .ok_or_else(|| anyhow!("executable {} not found in group {}", name, group))?;
-        
+
         if bin.enabled == enabled {
             return Ok(()); // Already in desired state
         }
-        
+
         bin.enabled = enabled;
-        
+
         // Update symlink if in active group
         if self.active_group == group {
             if enabled {
@@ -336,33 +346,42 @@ impl Config {
                 bin.uninstall(&self.bin_dir)?;
             }
         }
-        
+
         Ok(())
     }
 
     pub fn search(&self, query: &str) -> Vec<(String, String, &Bin)> {
         let mut results = Vec::new();
         let query_lower = query.to_lowercase();
-        
+
         for (group_name, group) in &self.groups {
             for (bin_name, bin) in &group.bins {
-                if bin_name.to_lowercase().contains(&query_lower) 
-                    || bin.path.to_string_lossy().to_lowercase().contains(&query_lower) {
+                if bin_name.to_lowercase().contains(&query_lower)
+                    || bin
+                        .path
+                        .to_string_lossy()
+                        .to_lowercase()
+                        .contains(&query_lower)
+                {
                     results.push((group_name.clone(), bin_name.clone(), bin));
                 }
             }
         }
-        
+
         results
     }
 
     pub fn get_bin_info(&self, group: &str, name: &str) -> Result<&Bin> {
-        let g = self.groups.get(group)
+        let g = self
+            .groups
+            .get(group)
             .ok_or_else(|| anyhow!("group {} does not exist", group))?;
-        
-        let bin = g.bins.get(name)
+
+        let bin = g
+            .bins
+            .get(name)
             .ok_or_else(|| anyhow!("executable {} not found in group {}", name, group))?;
-        
+
         Ok(bin)
     }
 }

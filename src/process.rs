@@ -16,9 +16,7 @@ impl<'a> Run<'a> {
             .spawn()
             .expect("Failed to run command");
 
-        let status = child
-            .wait()
-            .expect("Failed to wait for child process");
+        let status = child.wait().expect("Failed to wait for child process");
 
         status.code()
     }
