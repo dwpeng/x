@@ -74,7 +74,7 @@ x list --all
 
 Output example:
 ```
-* global-default-group-name
+* base
   1. node -> /usr/local/bin/node
   2. npm -> /usr/local/bin/npm
   production
@@ -240,10 +240,10 @@ The configuration file is stored at `~/.config/x/config.json`:
 
 ```json
 {
-  "active-group": "global-default-group-name",
+  "active-group": "base",
   "bin-dir": "/home/user/.local/bin/x",
   "groups": {
-    "global-default-group-name": {
+    "base": {
       "index": 0,
       "bins": {
         "myapp": {
