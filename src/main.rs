@@ -233,9 +233,7 @@ pub fn init(cmd: InitCommand) {
                                     );
                                     println!(
                                         "Please run {} or restart your shell to apply changes.",
-                                        "source {}"
-                                            .replace("{}", config_path.to_str().unwrap())
-                                            .green()
+                                        format!("source {}", config_path.display()).green()
                                     );
                                 }
                                 Err(e) => {
