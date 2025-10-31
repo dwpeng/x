@@ -93,7 +93,7 @@ pub struct Config {
     pub groups: HashMap<String, Group>,
 }
 
-pub static GLOBAL_DEFAULT_GROUP_NAME: &str = "global-default-group-name";
+pub static GLOBAL_DEFAULT_GROUP_NAME: &str = "base";
 
 pub fn get_bin_dir() -> Result<PathBuf> {
     let home_dir = dirs::home_dir().ok_or_else(|| anyhow!("cannot get home dir"))?;
@@ -549,26 +549,50 @@ mod tests {
         config.groups.insert("test-group".to_string(), group);
 
         // Install the executable
-        config.groups.get("test-group").unwrap()
-            .bins.get("test_exe").unwrap()
-            .install(&bin_dir).unwrap();
+        config
+            .groups
+            .get("test-group")
+            .unwrap()
+            .bins
+            .get("test_exe")
+            .unwrap()
+            .install(&bin_dir)
+            .unwrap();
 
         // Check symlink exists
         assert!(bin_dir.join("test_exe").exists());
 
         // Disable the executable
         config.set_enabled("test-group", "test_exe", false).unwrap();
-        assert_eq!(config.groups.get("test-group").unwrap()
-            .bins.get("test_exe").unwrap().enabled, false);
-        
+        assert_eq!(
+            config
+                .groups
+                .get("test-group")
+                .unwrap()
+                .bins
+                .get("test_exe")
+                .unwrap()
+                .enabled,
+            false
+        );
+
         // Check symlink is removed
         assert!(!bin_dir.join("test_exe").exists());
 
         // Enable the executable
         config.set_enabled("test-group", "test_exe", true).unwrap();
-        assert_eq!(config.groups.get("test-group").unwrap()
-            .bins.get("test_exe").unwrap().enabled, true);
-        
+        assert_eq!(
+            config
+                .groups
+                .get("test-group")
+                .unwrap()
+                .bins
+                .get("test_exe")
+                .unwrap()
+                .enabled,
+            true
+        );
+
         // Check symlink is created again
         assert!(bin_dir.join("test_exe").exists());
     }

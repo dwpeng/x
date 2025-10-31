@@ -55,7 +55,7 @@ pub fn run(cmd: RunCommand) {
         return;
     }
 
-    let group_name = cmd.group.unwrap_or(GLOBAL_DEFAULT_GROUP_NAME.to_string());
+    let group_name = cmd.group.unwrap_or(conf.active_group.clone());
 
     let r = conf.find(&group_name, program).unwrap_or_else(|| {
         eprintln!(
@@ -132,7 +132,7 @@ pub fn add(cmd: AddCommand) {
         std::process::exit(1);
     }
 
-    let group_name = cmd.group.unwrap_or(GLOBAL_DEFAULT_GROUP_NAME.to_string());
+    let group_name = cmd.group.unwrap_or(conf.active_group.clone());
 
     conf.add(&group_name, &cmd.path, cmd.name)
         .unwrap_or_else(|e| {
@@ -281,10 +281,10 @@ pub fn rm(cmd: RmCommand) {
         std::process::exit(1);
     });
 
-    let group_name = cmd.group.as_deref().unwrap_or(GLOBAL_DEFAULT_GROUP_NAME);
+    let group_name = cmd.group.unwrap_or(conf.active_group.clone());
 
     // check if group exists
-    if !conf.group_exists(group_name) {
+    if !conf.group_exists(&group_name) {
         eprintln!("group {} does not exist", group_name.green());
         std::process::exit(1);
     }
@@ -308,7 +308,7 @@ pub fn rm(cmd: RmCommand) {
         }
     }
 
-    conf.remove(group_name, cmd.name.as_deref(), cmd.delete)
+    conf.remove(&group_name, cmd.name.as_deref(), cmd.delete)
         .unwrap_or_else(|e| {
             eprintln!("Error: cannot remove executable: {}", e);
             std::process::exit(1);
@@ -326,9 +326,9 @@ pub fn switch(cmd: SwitchCommand) {
         std::process::exit(1);
     });
 
-    let need_active_group = cmd.group.unwrap_or(GLOBAL_DEFAULT_GROUP_NAME.to_owned());
+    let need_active_group = cmd.group.as_deref().unwrap_or(GLOBAL_DEFAULT_GROUP_NAME);
 
-    conf.switch(&need_active_group).unwrap_or_else(|e| {
+    conf.switch(need_active_group).unwrap_or_else(|e| {
         eprintln!("Error: cannot switch group: {}", e);
         std::process::exit(1);
     });
@@ -346,9 +346,9 @@ pub fn rename(cmd: RenameCommand) {
         std::process::exit(1);
     });
 
-    let group_name = cmd.group.as_deref().unwrap_or(GLOBAL_DEFAULT_GROUP_NAME);
+    let group_name = cmd.group.unwrap_or(conf.active_group.clone());
 
-    conf.rename(group_name, &cmd.old_name, &cmd.new_name)
+    conf.rename(&group_name, &cmd.old_name, &cmd.new_name)
         .unwrap_or_else(|e| {
             eprintln!("Error: cannot rename executable: {}", e);
             std::process::exit(1);
@@ -373,10 +373,10 @@ pub fn info(cmd: InfoCommand) {
         std::process::exit(1);
     });
 
-    let group_name = cmd.group.as_deref().unwrap_or(GLOBAL_DEFAULT_GROUP_NAME);
+    let group_name = cmd.group.unwrap_or(conf.active_group.clone());
 
     let bin = conf
-        .get_bin_info(group_name, &cmd.name)
+        .get_bin_info(&group_name, &cmd.name)
         .unwrap_or_else(|e| {
             eprintln!("Error: {}", e);
             std::process::exit(1);
@@ -433,9 +433,9 @@ pub fn enable(cmd: EnableCommand) {
         std::process::exit(1);
     });
 
-    let group_name = cmd.group.as_deref().unwrap_or(GLOBAL_DEFAULT_GROUP_NAME);
+    let group_name = cmd.group.unwrap_or(conf.active_group.clone());
 
-    conf.set_enabled(group_name, &cmd.name, true)
+    conf.set_enabled(&group_name, &cmd.name, true)
         .unwrap_or_else(|e| {
             eprintln!("Error: cannot enable executable: {}", e);
             std::process::exit(1);
@@ -459,9 +459,9 @@ pub fn disable(cmd: DisableCommand) {
         std::process::exit(1);
     });
 
-    let group_name = cmd.group.as_deref().unwrap_or(GLOBAL_DEFAULT_GROUP_NAME);
+    let group_name = cmd.group.unwrap_or(conf.active_group.clone());
 
-    conf.set_enabled(group_name, &cmd.name, false)
+    conf.set_enabled(&group_name, &cmd.name, false)
         .unwrap_or_else(|e| {
             eprintln!("Error: cannot disable executable: {}", e);
             std::process::exit(1);
