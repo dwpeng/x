@@ -225,9 +225,13 @@ x switch prod
 # Add your custom scripts
 x add ~/my-scripts
 
-# Run them from anywhere
-x backup-db
-x deploy-app
+# Run them from anywhere (after PATH is configured)
+backup-db
+deploy-app
+
+# Or use the x run command
+x run backup-db
+x run deploy-app
 ```
 
 ## 🔧 Configuration
