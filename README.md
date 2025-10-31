@@ -304,4 +304,4 @@ A: The code includes cross-platform support for Windows, macOS, and Linux, but i
 
 ---
 
-Made with ❤️ by the x community
+Made with ❤️ by the Copilot
