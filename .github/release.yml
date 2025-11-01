@@ -1,0 +1,74 @@
+# Based on https://github.com/typst/typst/blob/main/.github/workflows/release.yml
+
+name: Build Release Binaries
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-release:
+    name: release ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    strategy:
+      matrix:
+        include:
+            - target: x86_64-unknown-linux-gnu
+              os: ubuntu-latest
+              cross: true
+            - target: aarch64-unknown-linux-gnu
+              os: ubuntu-latest
+              cross: true
+
+    steps:
+    - uses: actions/checkout@v5
+    - uses: mlugg/setup-zig@v2
+
+    - name: Build linux binaries
+      if: ${{ matrix.cross }}
+      run: |
+        rustup default nightly
+        cargo install cargo-zigbuild
+        rustup target add ${{ matrix.target }}
+        cargo zigbuild --release --target ${{ matrix.target }}.2.17
+        mkdir -p target/${{ matrix.target }}.2.17/release
+        cp target/${{ matrix.target }}/release/x target/${{ matrix.target }}.2.17/release/x
+        cargo zigbuild --release --target ${{ matrix.target }}
+
+    - name: Build windows/mac binaries
+      if: ${{ !matrix.cross }}
+      run: |
+        rustup default nightly
+        rustup target add ${{ matrix.target }}
+        cargo build --release --target ${{ matrix.target }}
+
+    - name: create artifact directory
+      shell: bash
+      run: |
+        echo "target: ${{ matrix.target }}"
+        directory=x-${{ matrix.target }}
+        mkdir $directory
+        if [ -f target/${{ matrix.target }}/release/x ]; then
+            cp target/${{ matrix.target }}/release/x $directory/
+            tar cJf $directory.tar.xz $directory/
+            echo "artifact: $directory.tar.xz"
+            if [ -f target/${{ matrix.target }}.2.17/release/x ]; then
+                mkdir $directory.2.17
+                cp target/${{ matrix.target }}.2.17/release/x $directory.2.17/
+                tar cJf $directory.2.17.tar.xz $directory.2.17/
+                echo "artifact: $directory.2.17.tar.xz"
+            fi
+        fi
+        if [ -f target/${{ matrix.target }}/release/x.exe ]; then
+            cp target/${{ matrix.target }}/release/x.exe $directory/
+            7z a $directory.zip $directory/
+            echo "artifact: $directory.zip"
+        fi
+
+    - uses: ncipollo/release-action@v1.14.0
+      with:
+        artifacts: "*.tar.xz,*.zip"
+        allowUpdates: true
+        omitNameDuringUpdate: true
+        omitBodyDuringUpdate: true
