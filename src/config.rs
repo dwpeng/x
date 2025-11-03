@@ -145,7 +145,7 @@ impl Config {
         group: impl Into<String>,
         path: impl AsRef<Path>,
         name: Option<String>,
-    ) -> Result<()> {
+    ) -> Result<usize> {
         let path = path.as_ref();
         let group_name = group.into();
 
@@ -169,13 +169,15 @@ impl Config {
             let g = self.groups.entry(group_name).or_default();
             g.bins.insert(bin_name, bin);
             g.index = g.bins.len() - 1;
-            return Ok(());
+            return Ok(1);
         }
 
         if path.is_dir() {
             let g = self.groups.entry(group_name.clone()).or_default();
             g.index = g.bins.len() - 1;
-            for (name, file_path) in collect_executables_from_dir(path)? {
+            let bins = collect_executables_from_dir(path)?;
+            let nbins = bins.len();
+            for (name, file_path) in bins {
                 let bin = Bin {
                     name: name.clone(),
                     path: file_path,
@@ -187,7 +189,7 @@ impl Config {
                 }
                 g.bins.insert(name, bin);
             }
-            return Ok(());
+            return Ok(nbins);
         }
 
         anyhow::bail!("path is neither an executable file nor a directory")

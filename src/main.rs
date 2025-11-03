@@ -134,7 +134,8 @@ pub fn add(cmd: AddCommand) {
 
     let group_name = cmd.group.unwrap_or(conf.active_group.clone());
 
-    conf.add(&group_name, &cmd.path, cmd.name)
+    let nbins = conf
+        .add(&group_name, &cmd.path, cmd.name)
         .unwrap_or_else(|e| {
             eprintln!("Error: cannot add path {}: {}", cmd.path, e);
             std::process::exit(1);
@@ -148,7 +149,17 @@ pub fn add(cmd: AddCommand) {
         );
         std::process::exit(1);
     });
-    println!("Added {} to group {}", cmd.path, group_name);
+    if nbins == 0 {
+        println!("No executables found in {}", cmd.path.green());
+    } else if nbins == 1 {
+        println!(
+            "Added {} executable to group {}",
+            cmd.path.green(),
+            group_name.cyan()
+        );
+    } else {
+        println!("Added {} executables to group {}", nbins, group_name.cyan());
+    }
 }
 
 pub fn list(cmd: ListCommand) {
