@@ -149,7 +149,7 @@ impl Config {
         let path = path.as_ref();
         let group_name = group.into();
 
-        if path.is_file() && is_executable(path) {
+        if path.is_file() && is_runnable_file(path) {
             let bin_name = if let Some(name) = name {
                 name
             } else {
@@ -192,7 +192,7 @@ impl Config {
             return Ok(nbins);
         }
 
-        anyhow::bail!("path is neither an executable file nor a directory")
+        anyhow::bail!("path is neither an executable/script file nor a directory")
     }
 
     pub fn pretty_print(&self, group: Option<&str>) {
@@ -420,7 +420,7 @@ fn collect_executables_from_dir(dir: &Path) -> Result<Vec<(String, PathBuf)>> {
             continue;
         }
         let path = entry.path();
-        if is_executable(&path) {
+        if is_runnable_file(&path) {
             let name = entry
                 .file_name()
                 .into_string()
@@ -429,6 +429,17 @@ fn collect_executables_from_dir(dir: &Path) -> Result<Vec<(String, PathBuf)>> {
         }
     }
     Ok(res)
+}
+
+fn is_supported_script(path: &Path) -> bool {
+    path.extension()
+        .and_then(|s| s.to_str())
+        .map(|ext| matches!(ext.to_ascii_lowercase().as_str(), "sh" | "py"))
+        .unwrap_or(false)
+}
+
+fn is_runnable_file(path: &Path) -> bool {
+    is_executable(path) || is_supported_script(path)
 }
 
 fn executable_name(path: &Path) -> Result<String> {
@@ -597,5 +608,37 @@ mod tests {
 
         // Check symlink is created again
         assert!(bin_dir.join("test_exe").exists());
+    }
+
+    #[test]
+    fn test_add_non_executable_scripts() {
+        let temp_dir = TempDir::new().unwrap();
+        let bin_dir = temp_dir.path().join("bin");
+        fs::create_dir_all(&bin_dir).unwrap();
+
+        let shell_script = temp_dir.path().join("demo_shell.sh");
+        fs::write(&shell_script, "echo hello\n").unwrap();
+
+        let python_script = temp_dir.path().join("demo_python.py");
+        fs::write(&python_script, "print('hello')\n").unwrap();
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&shell_script, fs::Permissions::from_mode(0o644)).unwrap();
+            fs::set_permissions(&python_script, fs::Permissions::from_mode(0o644)).unwrap();
+        }
+
+        let mut config = Config {
+            active_group: "base".to_string(),
+            bin_dir,
+            groups: HashMap::new(),
+        };
+
+        assert_eq!(config.add("scripts", &shell_script, None).unwrap(), 1);
+        assert_eq!(config.add("scripts", &python_script, None).unwrap(), 1);
+
+        assert!(config.find("scripts", "demo_shell").is_some());
+        assert!(config.find("scripts", "demo_python").is_some());
     }
 }
