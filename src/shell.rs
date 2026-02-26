@@ -67,26 +67,9 @@ pub fn path_exists_in_config(config_path: &Path, bin_dir: &str) -> Result<bool> 
 
     let content = fs::read_to_string(config_path)?;
 
-    // Check for the PATH in various common formats
-    // Using closures for lazy evaluation to avoid unnecessary allocations
-    let checks: &[fn(&str) -> String] = &[
-        |dir| format!("export PATH=\"{}:$PATH\"", dir),
-        |dir| format!("export PATH='{}:$PATH'", dir),
-        |dir| format!("export PATH={}:$PATH", dir),
-        |dir| format!("set -gx PATH {} $PATH", dir), // fish format
-        |dir| format!("set PATH {} $PATH", dir),     // fish format
-    ];
-
-    for check in checks {
-        if content.contains(&check(bin_dir)) {
-            return Ok(true);
-        }
-    }
-
-    // Check for lines that export PATH with the bin_dir (more specific than before)
+    // Single-pass: check each line for a PATH export/set that references bin_dir.
     for line in content.lines() {
         let trimmed = line.trim();
-        // Only match lines that start with export PATH or set PATH and contain bin_dir
         if (trimmed.starts_with("export PATH")
             || trimmed.starts_with("set -gx PATH")
             || trimmed.starts_with("set PATH"))

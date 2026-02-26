@@ -26,21 +26,23 @@ impl Bin {
             return Ok(());
         }
 
-        if dir_path.join(self.name.as_str()).exists() {
-            fs::remove_file(dir_path.join(self.name.as_str()))?;
+        let symlink_path = dir_path.join(&self.name);
+        if symlink_path.exists() {
+            fs::remove_file(&symlink_path)?;
         }
 
         #[cfg(unix)]
-        std::os::unix::fs::symlink(&self.path, dir_path.join(self.name.as_str()))?;
+        std::os::unix::fs::symlink(&self.path, &symlink_path)?;
         #[cfg(windows)]
-        std::os::windows::fs::symlink_file(&self.path, dir_path.join(self.name.as_str()))?;
+        std::os::windows::fs::symlink_file(&self.path, &symlink_path)?;
 
         Ok(())
     }
 
     pub fn uninstall(&self, dir_path: &Path) -> Result<()> {
-        if dir_path.join(self.name.as_str()).exists() {
-            fs::remove_file(dir_path.join(self.name.as_str()))?;
+        let symlink_path = dir_path.join(&self.name);
+        if symlink_path.exists() {
+            fs::remove_file(&symlink_path)?;
         }
         Ok(())
     }
@@ -55,9 +57,8 @@ pub struct Group {
 
 impl Group {
     pub fn remove_bin_by_name(&mut self, name: &str, bin_dir: &Path) -> Result<()> {
-        if let Some(bin) = self.bins.get(name) {
+        if let Some(bin) = self.bins.remove(name) {
             bin.uninstall(bin_dir)?;
-            self.bins.remove(name);
         }
         Ok(())
     }
@@ -75,10 +76,9 @@ impl Group {
             .collect();
 
         for name in to_remove {
-            if let Some(bin) = self.bins.get(&name) {
+            if let Some(bin) = self.bins.remove(&name) {
                 bin.uninstall(bin_dir)?;
             }
-            self.bins.remove(&name);
         }
 
         Ok(())
@@ -173,10 +173,9 @@ impl Config {
         }
 
         if path.is_dir() {
-            let g = self.groups.entry(group_name.clone()).or_default();
-            g.index = g.bins.len() - 1;
             let bins = collect_executables_from_dir(path)?;
             let nbins = bins.len();
+            let g = self.groups.entry(group_name.clone()).or_default();
             for (name, file_path) in bins {
                 let bin = Bin {
                     name: name.clone(),
@@ -189,6 +188,7 @@ impl Config {
                 }
                 g.bins.insert(name, bin);
             }
+            g.index = g.bins.len().saturating_sub(1);
             return Ok(nbins);
         }
 
