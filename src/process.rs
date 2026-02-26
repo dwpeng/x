@@ -29,8 +29,16 @@ mod tests {
 
     #[test]
     fn run_and_monitor_returns_status_for_valid_command() {
-        let args = vec!["--version".to_string()];
-        let run = Run::new("rustc", &args);
-        assert!(run.run_and_monitor().is_some());
+        #[cfg(unix)]
+        let (command, args) = ("true", vec![]);
+
+        #[cfg(windows)]
+        let (command, args) = (
+            "cmd",
+            vec!["/C".to_string(), "exit".to_string(), "0".to_string()],
+        );
+
+        let run = Run::new(command, &args);
+        assert_eq!(run.run_and_monitor(), Some(0));
     }
 }
