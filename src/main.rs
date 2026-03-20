@@ -218,6 +218,22 @@ pub fn init(cmd: InitCommand) {
         conf_path.display().to_string().color(colored::Color::Green)
     );
 
+    match shell::maybe_copy_current_executable_to_local_x() {
+        Ok(Some(copied_path)) => {
+            println!(
+                "Copied current x executable to {} because current executable directory is not in PATH",
+                copied_path.display().to_string().green()
+            );
+        }
+        Ok(None) => {}
+        Err(e) => {
+            eprintln!(
+                "Warning: failed to copy current x executable to ~/.local/x: {}",
+                e
+            );
+        }
+    }
+
     let bin_dir = conf.bin_dir.to_str().unwrap();
 
     // Detect shell and automatically add PATH
