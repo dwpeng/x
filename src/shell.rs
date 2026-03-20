@@ -34,17 +34,12 @@ pub fn detect_shell() -> ShellType {
 /// Get the shell configuration file path for the detected shell
 pub fn get_shell_config_path(shell_type: &ShellType) -> Result<PathBuf> {
     let home_dir = dirs::home_dir().ok_or_else(|| anyhow!("cannot get home directory"))?;
+    get_shell_config_path_from_home(shell_type, &home_dir)
+}
 
+fn get_shell_config_path_from_home(shell_type: &ShellType, home_dir: &Path) -> Result<PathBuf> {
     let config_file = match shell_type {
-        ShellType::Bash => {
-            // Try .bashrc first, then .bash_profile
-            let bashrc = home_dir.join(".bashrc");
-            if bashrc.exists() {
-                bashrc
-            } else {
-                home_dir.join(".bash_profile")
-            }
-        }
+        ShellType::Bash => home_dir.join(".bashrc"),
         ShellType::Zsh => home_dir.join(".zshrc"),
         ShellType::Fish => {
             let fish_config_dir = home_dir.join(".config").join("fish");
@@ -235,6 +230,19 @@ mod tests {
         add_path_to_config(&ShellType::Fish, &fish_config_path, "/test/bin").unwrap();
         let content = fs::read_to_string(&fish_config_path).unwrap();
         assert!(content.contains("set -gx PATH /test/bin $PATH"));
+    }
+
+    #[test]
+    fn test_get_shell_config_path_from_home_uses_shell_type_not_file_existence() {
+        let temp_dir = TempDir::new().unwrap();
+        let home_dir = temp_dir.path();
+
+        fs::write(home_dir.join(".bash_profile"), "# existing\n").unwrap();
+        let bash_path = get_shell_config_path_from_home(&ShellType::Bash, home_dir).unwrap();
+        assert_eq!(bash_path, home_dir.join(".bashrc"));
+
+        let zsh_path = get_shell_config_path_from_home(&ShellType::Zsh, home_dir).unwrap();
+        assert_eq!(zsh_path, home_dir.join(".zshrc"));
     }
 
     #[test]
