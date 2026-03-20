@@ -154,19 +154,30 @@ fn copy_executable_to_local_x(current_exe: &Path, home_dir: &Path) -> Result<Pat
     Ok(dest_path)
 }
 
-pub fn maybe_copy_current_executable_to_local_x() -> Result<Option<PathBuf>> {
-    let current_exe = env::current_exe()?;
+fn maybe_copy_executable_if_dir_not_in_path(
+    current_exe: &Path,
+    path_var: Option<&std::ffi::OsStr>,
+    home_dir: &Path,
+) -> Result<Option<PathBuf>> {
     let current_dir = current_exe
         .parent()
         .ok_or_else(|| anyhow!("cannot get executable directory"))?;
 
-    if is_dir_in_current_path(current_dir) {
+    let in_path = path_var
+        .map(|path| path_contains_dir(path, current_dir))
+        .unwrap_or(false);
+    if in_path {
         return Ok(None);
     }
 
-    let home_dir = dirs::home_dir().ok_or_else(|| anyhow!("cannot get home directory"))?;
-    let copied_path = copy_executable_to_local_x(&current_exe, &home_dir)?;
+    let copied_path = copy_executable_to_local_x(current_exe, home_dir)?;
     Ok(Some(copied_path))
+}
+
+pub fn maybe_copy_current_executable_to_local_x() -> Result<Option<PathBuf>> {
+    let current_exe = env::current_exe()?;
+    let home_dir = dirs::home_dir().ok_or_else(|| anyhow!("cannot get home directory"))?;
+    maybe_copy_executable_if_dir_not_in_path(&current_exe, env::var_os("PATH").as_deref(), &home_dir)
 }
 
 #[cfg(test)]
@@ -252,5 +263,35 @@ mod tests {
         assert_eq!(copied_path, home_dir.join(".local").join("x").join("x"));
         assert!(copied_path.exists());
         assert_eq!(fs::read(&copied_path).unwrap(), fs::read(&exe_path).unwrap());
+    }
+
+    #[test]
+    fn test_maybe_copy_executable_if_dir_not_in_path() {
+        let temp_dir = TempDir::new().unwrap();
+        let home_dir = temp_dir.path().join("home");
+        fs::create_dir_all(&home_dir).unwrap();
+
+        let exe_dir = temp_dir.path().join("bin");
+        fs::create_dir_all(&exe_dir).unwrap();
+        let exe_path = exe_dir.join("x");
+        fs::write(&exe_path, b"#!/bin/sh\necho test\n").unwrap();
+
+        let path_without_exe_dir = env::join_paths([PathBuf::from("/usr/bin")]).unwrap();
+        let copied = maybe_copy_executable_if_dir_not_in_path(
+            &exe_path,
+            Some(path_without_exe_dir.as_os_str()),
+            &home_dir,
+        )
+        .unwrap();
+        assert_eq!(copied, Some(home_dir.join(".local").join("x").join("x")));
+
+        let path_with_exe_dir = env::join_paths([exe_dir]).unwrap();
+        let skipped = maybe_copy_executable_if_dir_not_in_path(
+            &exe_path,
+            Some(path_with_exe_dir.as_os_str()),
+            &home_dir,
+        )
+        .unwrap();
+        assert_eq!(skipped, None);
     }
 }
